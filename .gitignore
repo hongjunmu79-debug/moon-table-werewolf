@@ -1,0 +1,17 @@
+node_modules/
+dist/
+dist-server/
+coverage/
+tests/.game-test.mjs
+*.log
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
+.DS_Store
+Thumbs.db

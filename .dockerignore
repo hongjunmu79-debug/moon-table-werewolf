@@ -1,0 +1,14 @@
+node_modules
+dist
+dist-server
+.git
+tests
+*.log
+.env
+.env.*
+*.pem
+*.key
+*.p12
+*.pfx
+credentials*.json
+service-account*.json
