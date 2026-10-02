@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>狼人杀 · 离线联机方案</title>
+<style>
+:root{color-scheme:dark;--bg:#101a16;--panel:#1b2821;--line:#3c5143;--text:#eef1e8;--muted:#b2bfb3;--accent:#d9ef88;--amber:#efc18f}*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:16px/1.75 system-ui,"Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:40px 24px 70px}h1{font-size:clamp(30px,5vw,48px);line-height:1.25;margin:12px 0 20px}h2{font-size:24px;font-weight:600;margin:38px 0 15px}h3{font-size:18px;margin:0 0 9px}p{margin:10px 0}a{color:var(--accent)}.tag{color:var(--accent);font-size:13px;border:1px solid var(--line);padding:5px 12px;border-radius:30px}.lead{max-width:760px;font-size:19px;color:var(--muted)}.cards{display:grid;grid-template-columns:repeat(3,1fr);gap:16px}.card{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:22px}.card.recommended{border-color:var(--accent)}.muted{color:var(--muted)}.accent{color:var(--accent)}.small{font-size:13px}.diagram{background:var(--panel);border:1px solid var(--line);border-radius:18px;padding:26px;text-align:center}.node{padding:16px 20px;border:1px solid var(--line);border-radius:12px;max-width:440px;margin:auto;background:#142119}.node.host{border-color:var(--accent)}.arrow{color:var(--accent);font-size:25px;padding:8px}.players{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;max-width:720px;margin:auto}.players .node{width:100%}.badge{display:inline-block;color:var(--accent);font-size:12px;border-bottom:1px solid var(--accent);margin-bottom:10px}.scroll{overflow-x:auto}table{width:100%;border-collapse:collapse;background:var(--panel);min-width:650px}th,td{padding:15px 17px;text-align:left;border-bottom:1px solid var(--line);vertical-align:top}th{color:var(--accent);font-weight:500}td:first-child{white-space:nowrap}.note{border-left:3px solid var(--amber);padding:12px 20px;background:#2c291e;border-radius:0 12px 12px 0;margin:20px 0;color:#f1ddc3}.steps{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;counter-reset:step}.step{padding:18px;background:var(--panel);border:1px solid var(--line);border-radius:12px}.step:before{counter-increment:step;content:"0" counter(step);display:block;font:24px/1.5 monospace;color:var(--accent)}details{margin:12px 0;padding:15px 20px;border:1px solid var(--line);border-radius:12px}summary{cursor:pointer;font-weight:600}footer{margin-top:32px;padding-top:20px;border-top:1px solid var(--line);font-size:13px;color:var(--muted)}@media(max-width:700px){main{padding:28px 18px 45px}.cards,.steps{grid-template-columns:1fr}.players{grid-template-columns:1fr}.lead{font-size:17px}.diagram{padding:18px}}@media print{body{background:#fff;color:#111}.card,.diagram,.node,.step,table{background:#fff;border-color:#bbb}.muted,.lead,footer{color:#444}.accent,.arrow,.tag,th,.badge{color:#334820}a{color:#234d24}.note{background:#faf5ea;color:#333}details{break-inside:avoid}}
+</style>
+</head>
+<body><main>
+<span class="tag">月下 · 联机方案说明 · 尚未开发与实机验证</span>
+<h1>没有互联网，<br>也可以在同一个房间开局。</h1>
+<p class="lead">推荐先做本地 Wi‑Fi／热点联机：法官设备提供网页和房间服务，玩家连入同一网络，扫码后用浏览器玩。复用现有游戏逻辑，把安装负担集中在法官端。</p>
+
+<h2>先判断是哪一种“网络不好”</h2>
+<div class="cards">
+<section class="card recommended"><h3>人在同一现场</h3><p>手机信号弱、宽带断网，仍有热点或 Wi‑Fi。</p><p class="accent">本地联机适用。游戏状态无需经过腾讯云。</p></section>
+<section class="card"><h3>人在不同地方</h3><p>大家通过线上语音房远程玩。</p><p>热点、蓝牙只能连接附近的人；仍需互联网。应优先优化云端网页的弱网重连和请求频率。</p></section>
+<section class="card"><h3>现场连 Wi‑Fi 也不稳定</h3><p>设备频繁断开或热点无法容纳所有人。</p><p>先检查设备连接上限和网络隔离，再考虑蓝牙 App。不要把互联网断开与局域网断开混为一谈。</p></section>
+</div>
+
+<h2>推荐架构：一位法官，一个本地房间</h2>
+<div class="diagram" role="img" aria-label="法官端本地服务器通过同一热点或路由器向各位玩家浏览器提供页面和各自私密状态">
+<div class="node host"><span class="badge">唯一负责判定游戏状态的设备</span><br><strong>法官端 · 电脑程序或手机 App</strong><br><span class="muted">内置网页 + 本地房间服务 + 本地存档</span></div>
+<div class="arrow" aria-hidden="true">↕</div>
+<div class="node"><strong>同一个热点／现有 Wi‑Fi 路由器</strong><br><span class="muted">可不连接互联网 · 入场地址以二维码展示</span></div>
+<div class="arrow" aria-hidden="true">↕</div>
+<div class="players"><div class="node">玩家 A · 浏览器<br><span class="small muted">只收到自己的身份</span></div><div class="node">玩家 B · 浏览器<br><span class="small muted">提交自己的行动</span></div><div class="node">其他玩家 · 浏览器<br><span class="small muted">最多 12 位玩家</span></div></div>
+<p class="small muted">二维码用于找房间，每位玩家的私密会话仍需单独建立；房间全量身份不广播给所有设备。</p>
+</div>
+<div class="note"><strong>12 位玩家 + 1 位法官 = 13 台设备。</strong>手机热点的连接数量及设备互通能力各有差异，不能预先保证够用。优先用现成路由器与电脑验证，不需要先购买新设备。</div>
+
+<h2>通信方式比较</h2>
+<div class="scroll"><table>
+<thead><tr><th>方案</th><th>安装与加入</th><th>适合情况</th><th>主要成本和风险</th></tr></thead>
+<tbody>
+<tr><td><strong>本地 Wi‑Fi／热点<br><span class="accent">推荐第一版</span></strong></td><td>法官运行主持端；玩家连网络、扫码打开网页</td><td>同场、混用不同系统手机、已有网页需要复用</td><td>测试热点上限、设备互通和主机后台运行；离线页面必须由本地主机提供</td></tr>
+<tr><td>纯蓝牙 App</td><td>全员安装匹配版本的原生 App，发现并连接法官端</td><td>不便建立 Wi‑Fi 的场合</td><td>多机连接、消息确认、重连与跨系统权限适配更多；现有普通网页不能通用地接管蓝牙联机</td></tr>
+<tr><td>蓝牙发现 + Wi‑Fi 同步</td><td>App 通过蓝牙找到房间，再通过 Wi‑Fi 同步</td><td>需要减少手动输入、已有原生 App 的后续版本</td><td>同时维护两套通信与权限；第一版用二维码已能解决找房间问题</td></tr>
+</tbody></table></div>
+
+<h2>玩家实际怎么用</h2>
+<div class="steps"><div class="step"><strong>连到同一个网络</strong><p class="muted">法官开热点，或大家连现场路由器；没有互联网也可以。</p></div><div class="step"><strong>扫码进入本地牌桌</strong><p class="muted">法官端显示地址二维码，玩家浏览器取得页面并入座。</p></div><div class="step"><strong>正常走狼人杀流程</strong><p class="muted">私密发身份、夜间行动、发言、投票。断开后恢复同一席位。</p></div></div>
+
+<h2>第一版必须解决的四件事</h2>
+<details open><summary>断线恢复与防重复操作</summary><p>法官端保存权威状态；玩家操作得到确认后才算成功。断线后重新取得状态，避免重复投票、重复用药或法官连续点击推进两次。</p></details>
+<details open><summary>法官端锁屏、退出和掉电</summary><p>游戏数据保存在主机本地，重启能恢复。手机作为主机还需要处理系统后台限制；主机故障时整桌暂停，自动更换主机可作为后续能力。</p></details>
+<details open><summary>身份保密</summary><p>玩家只收到其权限允许看到的数据。邀请地址不携带身份或法官凭证；通信与存档的保护需在实现时验证。</p></details>
+<details open><summary>真正的离线验证</summary><p>开局前断开互联网，用实际设备完成一整局，包括 12 位玩家加入、切后台、断线重连和主机重启。单机演示或浏览器模拟不能代替实机验证。</p></details>
+
+<h2>建议实施顺序</h2>
+<div class="steps"><div class="step"><strong>复用网页验证局域网</strong><p class="muted">先用现有电脑作主机，验证混合手机浏览器和完整游戏流程。</p></div><div class="step"><strong>确定法官手机系统</strong><p class="muted">需要手机主持时，再选择 Android、鸿蒙或 iOS 的实现与分发方式。</p></div><div class="step"><strong>按实际需要加蓝牙</strong><p class="muted">只有局域网方案确实不能满足现场需求时，再做蓝牙传输或发现。</p></div></div>
+<p class="note">本地房间不调用腾讯云时，这部分游戏同步不消耗云端额度。但现有线上语音房仍需要互联网；同场交流可直接说话，异地语音不能靠一个现场热点解决。</p>
+<footer><strong>资料与状态</strong><p>这是方案说明，没有安装 App、实现离线传输或变更线上部署。实施前需确认法官设备系统与玩家是否在同一现场。</p><p><a href="https://developer.android.com/develop/connectivity/wifi/localonlyhotspot">Android 本地热点</a> · <a href="https://developer.chrome.com/docs/capabilities/bluetooth">Chrome Web Bluetooth</a> · <a href="https://github.com/WebKit/standards-positions/issues/570">WebKit 对 Web Bluetooth 的立场</a> · <a href="https://developer.apple.com/documentation/technotes/tn3179-understanding-local-network-privacy">Apple 本地网络权限</a></p></footer>
+</main></body></html>
