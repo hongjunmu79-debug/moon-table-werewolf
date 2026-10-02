@@ -1,0 +1,26 @@
+.setup-picker{margin-top:22px}
+.mode-choice{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.mode-choice button{min-height:46px;border:1px solid #46563e;border-radius:8px;background:#142019;color:#bac8af;font:inherit;font-size:14px}
+.mode-choice button[aria-pressed=true]{background:#35452a;color:#e3f4be;border-color:#a7be73}
+.setup-summary{background:#152219;border:1px solid #3e5339;border-radius:10px;padding:15px 18px;margin:16px 0 20px;min-width:0}
+.setup-summary strong{font-size:14px;color:#d9e9c1;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-weight:500}
+.setup-summary strong span{font-size:11px;color:#b5c5a7;border:1px solid #43583a;border-radius:99px;padding:1px 7px}
+.setup-summary p{font-size:13px;color:#c5d4b7;line-height:1.8;margin:8px 0}
+.setup-summary small{display:block;color:#99ac91;font-size:12px;line-height:1.8}
+.setup-note{font-size:12px;line-height:1.8;color:#a6b599;margin:12px 0 0}
+.setup-note.invalid{color:#f1b6a7}
+.setup-total{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin:18px 0 10px;font-size:13px;color:#b8c7ab}
+.setup-total b{color:#d9ef88;font-family:monospace;font-size:16px}
+.setup-total span{font-size:12px;color:#8fa482;margin-left:auto}
+.role-editor{border-top:1px solid #394b35}
+.role-counter{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #394b35;padding:9px 0;gap:12px}
+.role-counter>span{font-size:14px;color:#d0dfc2}
+.role-counter small{display:block;font-size:11px;color:#8fa182;line-height:1.5}
+.role-counter>div{display:flex;align-items:center;gap:5px;flex:none}
+.role-counter button{width:40px;height:40px;border:1px solid #495c40;border-radius:7px;background:#24351f;color:#d7e9c5;font-size:18px}
+.role-counter output{width:28px;text-align:center;font-family:monospace;color:#d9ef88}
+select.field{display:block;color-scheme:dark;cursor:pointer}
+.join-layout>.setup-summary{width:100%;max-width:480px;margin-top:14px;margin-bottom:0}
+.room>.setup-summary{margin-top:0;margin-bottom:24px}
+.seat-orbit{left:calc(50% + cos(calc(var(--i)*var(--step,40deg) - 90deg))*163px);top:calc(50% + sin(calc(var(--i)*var(--step,40deg) - 90deg))*113px)}
+@media(max-width:760px){.setup-summary{padding:14px}.role-counter button{width:44px;height:44px}.setup-total span{margin-left:0}}
