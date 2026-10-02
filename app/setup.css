@@ -23,4 +23,9 @@ select.field{display:block;color-scheme:dark;cursor:pointer}
 .join-layout>.setup-summary{width:100%;max-width:480px;margin-top:14px;margin-bottom:0}
 .room>.setup-summary{margin-top:0;margin-bottom:24px}
 .seat-orbit{left:calc(50% + cos(calc(var(--i)*var(--step,40deg) - 90deg))*163px);top:calc(50% + sin(calc(var(--i)*var(--step,40deg) - 90deg))*113px)}
+.sheriff-tag{display:inline-block;color:#ead991;font-size:11px;border:1px solid #776d3e;border-radius:99px;padding:2px 7px;margin-top:5px}
+.seat-controls,.explode-control{border-top:1px solid #394b35;margin-top:20px;padding-top:18px}
+.seat-controls h3{font-size:16px;margin:0 0 10px}.seat-controls label{display:block;margin:18px 0 10px}
+.swap-notice{background:#22301c;border:1px solid #536840;border-radius:8px;padding:12px}
+.explode-control .danger{min-height:46px}
 @media(max-width:760px){.setup-summary{padding:14px}.role-counter button{width:44px;height:44px}.setup-total span{margin-left:0}}
