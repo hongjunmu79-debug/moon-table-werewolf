@@ -1,0 +1,18 @@
+{
+  "envId": "moon-table-werewolf-d1b30d6d383d",
+  "version": "2.0",
+  "$schema": "https://framework-api.cloudbase.net/schema/latest.json",
+  "framework": {
+    "name": "moon-table-werewolf",
+    "plugins": {
+      "client": {
+        "use": "@cloudbase/framework-plugin-website",
+        "inputs": {
+          "buildCommand": "npm run build",
+          "outputPath": "dist",
+          "cloudPath": "/"
+        }
+      }
+    }
+  }
+}

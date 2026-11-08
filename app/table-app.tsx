@@ -11,6 +11,11 @@ import {ROLES,ROLE_HELP,PHASES,PLAYER_SIZES,recommendedConfig,configurationError
 import SetupEditor,{SetupSummary} from './setup-editor';
 import SheriffControls from './sheriff-controls';
 import SeatControls from './seat-controls';
+import MosaicoConsole from './mosaico-console';
+import AvalonView from './avalon-view';
+import TableTools from './table-tools';
+import { Cpu, Gamepad2, Wifi } from 'lucide-react';
+
 
 const script:Record<string,string>={
  lobby:'请大家打开邀请链接，使用语音房昵称入座，确认规则后点击准备。',
@@ -35,13 +40,81 @@ const script:Record<string,string>={
 };
 const advanceLabel:Record<string,string>={guard:'结束守护阶段',deal:'进入第一夜',wolves:'结束狼队行动',seer:'结束查验阶段',witch:'结束用药阶段',dawn:'公布天亮结果',speech:'开始放逐投票',vote:'结束投票并计票',dusk:'进入下一夜',sheriffSignup:'结束报名，开始竞选发言',sheriffSpeech:'结束竞选发言并投票',sheriffVote:'结束警长投票',runoffSpeech:'结束 PK 发言并开始加投',explosion:'自爆处理完毕，进入下一夜'};
 type Confirm={title:string;body:string;action:string;args?:Record<string,unknown>;epoch:number};
+function HoldToExplodeButton({ onExplode, disabled }: { onExplode: () => void; disabled: boolean }) {
+  const [progress, setProgress] = useState(0);
+  const timerRef = useRef<any>(null);
+  const startRef = useRef(0);
+
+  const start = () => {
+    if (disabled) return;
+    startRef.current = Date.now();
+    timerRef.current = setInterval(() => {
+      const elapsed = Date.now() - startRef.current;
+      const pct = Math.min(100, (elapsed / 2000) * 100);
+      setProgress(pct);
+      if (elapsed >= 2000) {
+        clearInterval(timerRef.current);
+        setProgress(0);
+        if ('vibrate' in navigator) navigator.vibrate([100, 50, 100]);
+        onExplode();
+      }
+    }, 40);
+  };
+
+  const cancel = () => {
+    if (timerRef.current) clearInterval(timerRef.current);
+    setProgress(0);
+  };
+
+  return (
+    <div className="explode-control">
+      <p className="muted small">
+        💣 存活狼人可随时自爆：长按 2 秒触发，立即中断白天发言与语音，直接进入天黑。
+      </p>
+      <button
+        type="button"
+        disabled={disabled}
+        onMouseDown={start}
+        onMouseUp={cancel}
+        onMouseLeave={cancel}
+        onTouchStart={start}
+        onTouchEnd={cancel}
+        className="danger full relative overflow-hidden select-none py-3"
+      >
+        <div
+          className="absolute left-0 top-0 bottom-0 bg-red-700/60 transition-all pointer-events-none"
+          style={{ width: `${progress}%` }}
+        />
+        <span className="relative z-10 font-bold flex items-center justify-center gap-2">
+          <span>💣 长按 2 秒自爆</span>
+          {progress > 0 && <span className="text-xs font-mono">({Math.round(progress)}%)</span>}
+        </span>
+      </button>
+    </div>
+  );
+}
+
 export default function TableApp(){
  const [r,setR]=useState<any>(null),[id,setId]=useState(''),[name,setName]=useState(''),[size,setSize]=useState('9'),[voice,setVoice]=useState(''),[busy,setBusy]=useState(false),[error,setError]=useState(''),[loaded,setLoaded]=useState(false),[rules,setRules]=useState(false),[identity,setIdentity]=useState(false),[showRoles,setShowRoles]=useState(false),[target,setTarget]=useState(''),[kind,setKind]=useState('pass'),[confirm,setConfirm]=useState<Confirm|null>(null),[now,setNow]=useState(Date.now()),[synced,setSynced]=useState(0),[invite,setInvite]=useState('');
- const [preferredSeat,setPreferredSeat]=useState('0');
+ const [preferredSeat,setPreferredSeat]=useState('0'),[gameType,setGameType]=useState<'avalon'|'werewolf'>('avalon'),[showConsole,setShowConsole]=useState(false),[wakeLocked,setWakeLocked]=useState(false);
  const [setup,setSetup]=useState<GameConfig>(recommendedConfig(9)),[editSetup,setEditSetup]=useState<GameConfig|null>(null),[editEpoch,setEditEpoch]=useState(0);
  function changeSize(value:string){setSize(value);setSetup(previous=>({...recommendedConfig(Number(value),previous.preset),mode:previous.mode,victory:previous.mode==='custom'?previous.victory:'edge',witchSelfSave:previous.witchSelfSave,sheriff:Number(value)>=9&&previous.sheriff,sheriffExplosion:previous.sheriffExplosion}));}
  const active=useRef(false),seq=useRef(0),roomRef=useRef<any>(null);roomRef.current=r;
  useEffect(()=>{const room=new URLSearchParams(location.search).get('room')||'';setId(room);setLoaded(true);},[]);
+  useEffect(()=>{
+    let sentinel:any=null;
+    const requestLock=async()=>{
+      if(typeof navigator!=='undefined'&&'wakeLock' in navigator&&document.visibilityState==='visible'){
+        try{sentinel=await (navigator as any).wakeLock.request('screen');setWakeLocked(true);sentinel.addEventListener('release',()=>setWakeLocked(false));}catch{setWakeLocked(false);}
+      }
+    };
+    void requestLock();
+    const onVis=()=>{
+      if(document.visibilityState==='visible'){void requestLock();if(id)void refresh(id);}
+    };
+    document.addEventListener('visibilitychange',onVis);
+    return ()=>{document.removeEventListener('visibilitychange',onVis);if(sentinel)sentinel.release();};
+  },[id]);
  useEffect(()=>{const timer=setInterval(()=>setNow(Date.now()),1000);const hide=()=>{if(document.hidden){setIdentity(false);setShowRoles(false);}};document.addEventListener('visibilitychange',hide);return()=>{clearInterval(timer);document.removeEventListener('visibilitychange',hide);}},[]);
  useEffect(()=>{setTarget('');setKind('pass');},[r?.epoch]);
  async function refresh(roomId=id){if(!roomId||active.current)return;const q=++seq.current;try{const res=await fetch('/api/room?id='+encodeURIComponent(roomId),{cache:'no-store'});const data:any=await res.json();if(!res.ok)throw new Error(data.error||'房间加载失败');if(q===seq.current){setR(data);setError('');setSynced(Date.now());}}catch(e){if(q===seq.current)setError(e instanceof Error?e.message:'连接中断，请重试');}}
@@ -74,6 +147,8 @@ export default function TableApp(){
   else act('advance');
  }
  const isRoom=r&&r.phase!=='join',me=r?.me,players:any[]=r?.players||[],night=['night','guard','wolves','seer','witch','dawn'].includes(r?.phase);
+ const isNightOled=r?.gameType==='werewolf'&&['night','guard','wolves','seer','witch'].includes(r?.phase);
+ const nightLeft=(isNightOled&&r?.deadline)?Math.max(0,Math.ceil((r.deadline-now)/1000)):0;
  const person=(pid:string)=>players.find(p=>p.id===pid);
  const label=(pid:string)=>pid==='pass'?'放弃':person(pid)?person(pid).seat+' 号 '+person(pid).name:'无人';
  const speaker=person(r?.speaker),seconds=r?.deadline?Math.max(0,Math.ceil((r.deadline-now)/1000)):90;
@@ -93,20 +168,81 @@ export default function TableApp(){
   {r?.phase==='deal'&&<p className="muted small">{players.filter(p=>p.ack).length} / {r.size} 位玩家已确认身份</p>}
   {['speech','sheriffSpeech','runoffSpeech'].includes(r?.phase)&&<><div className="speaker-clock"><Mic/><div><span>{speaker?.seat} 号 · {speaker?.name}</span><b>{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</b></div></div><p className="muted small">{seconds===0?'建议时间已到，法官可以交给下一位。':'每人建议 90 秒，由法官决定何时结束。'}</p><div className="button-row"><button className="secondary" disabled={busy} onClick={()=>act('restartTimer')}><RotateCcw size={16}/>重置</button><button className="secondary grow" disabled={busy||r.lastSpeaker} onClick={()=>act('nextSpeaker')}>下一位发言 <ArrowRight size={16}/></button></div></>}
   {r?.phase==='vote'&&<p className="muted small">已收到 {r.voteCount} / {r.voteTotal} 张票{r.voteRound===2?' · 平票加投':''}</p>}
-  {advanceLabel[r?.phase]&&<button className="primary full" disabled={busy||(r.phase==='deal'&&players.some(p=>!p.ack))} onClick={advance}>{advanceLabel[r.phase]} <ArrowRight size={18}/></button>}
+  {isNightOled&&nightLeft>0&&<div className="night-timer-bar"><span>🌙 夜间读秒保护中：</span><b className="text-amber-400 font-mono">{nightLeft}s</b><span className="text-[11px] text-slate-400">（防秒过抿身份）</span><button type="button" className="text-[11px] text-slate-500 hover:text-slate-300 ml-auto underline" onClick={()=>act('advance',{force:true})}>(紧急跳过)</button></div>}
+  {advanceLabel[r?.phase]&&<button className="primary full" disabled={busy||(r.phase==='deal'&&players.some(p=>!p.ack))||(isNightOled&&nightLeft>0)} onClick={advance}>{isNightOled&&nightLeft>0?`夜间读秒保护 (${nightLeft}s)`:advanceLabel[r.phase]} <ArrowRight size={18}/></button>}
   {r?.phase==='hunter'&&<><p>{label(r.hunter)} 正在决定是否开枪。</p><button className="secondary full" disabled={busy} onClick={()=>ask('shoot','代猎人选择不开枪？','仅当猎人明确放弃，或离线无法操作时使用。',{target:'pass'})}>猎人放弃开枪</button></>}
   {r?.phase==='ended'&&<button className="primary full" disabled={busy} onClick={()=>ask('rematch','原班人马，再来一局','保留席位，清空上一局身份和记录。所有人重新准备后发牌。')}>再来一局 <RotateCcw size={18}/></button>}
  </>;
- return <div className="shell"><Toaster theme="dark" position="top-center"/><header><a className="brand" href="/"><Moon size={25}/><strong>月下</strong><span>狼人杀</span></a><div className="header-actions">{isRoom&&<span className={'sync '+(now-synced>10000?'offline':'')}>{now-synced>10000?'正在重新连接':'房间已同步'}</span>}<button className="text-button" aria-label="玩法约定" onClick={()=>setRules(true)}><BookOpen size={16}/><span>玩法约定</span></button></div></header>
+ return <div className="shell"><Toaster theme="dark" position="top-center"/><header><a className="brand" href="/"><Moon size={25}/><strong>月下</strong><span>狼人杀</span></a><div className="header-actions">
+{isRoom && (
+  <button 
+    onClick={() => setShowConsole(!showConsole)} 
+    className="flex items-center gap-1.5 text-xs bg-emerald-600/30 hover:bg-emerald-600/50 text-emerald-300 border border-emerald-500/40 px-2.5 py-1 rounded-full transition shadow"
+    title="切换 ESP32 MOSAicO 480x480 AMOLED 桌面电子法官公屏"
+  >
+    <Cpu className="w-3.5 h-3.5 text-emerald-400" />
+    <span>ESP32 主机公屏</span>
+  </button>
+)}{wakeLocked&&<span className="pill text-[10px] text-emerald-400 border-emerald-500/40">🔆 屏幕常亮</span>}{isRoom&&<span className={'sync '+(now-synced>10000?'offline':'')}>{now-synced>10000?'正在重新连接':'房间已同步'}</span>}<button className="text-button" aria-label="玩法约定" onClick={()=>setRules(true)}><BookOpen size={16}/><span>玩法约定</span></button></div></header>
  {error&&<div className="error-banner" role="alert"><span>{error}</span>{id&&<button className="text-button" onClick={()=>void refresh()}>重试</button>}</div>}
- {!loaded||(id&&!r)?<main className="waiting"><Moon size={32}/><h1>正在寻找你的牌桌…</h1><p className="muted">{error?'请检查邀请链接，或重新建一桌。':'稍等，房间状态正在同步。'}</p>{error&&<a className="secondary" href="/">回到建房页</a>}</main>:!id?<main className="entry"><section className="intro"><span className="eyebrow">THE NIGHT IS YOURS</span><h1>人齐了，<br/>就开一局。</h1><p>语音里见，月下入座。<br/>发身份、走流程、计票，都交给这里。</p><div className="steps"><span><LinkIcon/> 分享房间</span><i>·</i><span><Shield/> 私密身份</span><i>·</i><span><Users/> 法官主持</span></div><div className="table-preview"><div className="table-ring"><Moon/><span>今晚，谁是狼人？</span><small>6–12 位玩家 · 另加 1 位法官</small></div>{Array.from({length:Number(size)},(_,i)=><span key={i} className="seat-orbit" style={{'--i':i,'--step':(360/Number(size))+'deg'} as React.CSSProperties}>{String(i+1).padStart(2,'0')}</span>)}</div></section><form className="create-panel" onSubmit={e=>{e.preventDefault();act('create',{name,size:Number(size),voice,setup});}}><div className="panel-top"><span className="eyebrow">NEW TABLE</span><span className="pill">法官建房</span></div><h2>开一桌</h2><p className="muted">建好房间，把邀请链接发到语音房。</p><label>怎么称呼你<input required value={name} onChange={e=>setName(e.target.value)} placeholder="法官昵称" maxLength={16}/></label><label>本局玩家人数<Select value={size} onValueChange={changeSize}><SelectTrigger className="field"><SelectValue/></SelectTrigger><SelectContent>{PLAYER_SIZES.map(n=><SelectItem key={n} value={String(n)}>{n} 人局 · 不含法官</SelectItem>)}</SelectContent></Select></label><SetupEditor size={Number(size)} setup={setup} onChange={setSetup}/><label>语音房链接 <span className="muted">选填</span><input type="url" value={voice} onChange={e=>setVoice(e.target.value)} placeholder="粘贴你们正在用的语音房链接"/></label><button className="primary" disabled={busy||!name.trim()||!!setupInvalid}>{busy?'正在建房…':'创建房间'} <ArrowUpRight size={19}/></button><div className="note"><Shield size={17}/><span>法官不占玩家席位。每个人用自己的手机入座。房间保留 24 小时。</span></div></form></main>:r?.phase==='join'?<main className="join-layout"><span className="eyebrow">YOUR SEAT IS WAITING</span><h1>{r.hostName} 的牌桌</h1><p className="muted">{r.size} 人局 · 已入座 {r.count} 人</p><SetupSummary setup={r.setup} size={r.size}/><form className="create-panel" onSubmit={e=>{e.preventDefault();act('join',{name,seat:Number(preferredSeat)});}}><h2>今晚，你来几号？</h2><p className="muted">可选择空座位，也可自动入座。身份在开局时随机发放。</p><label>语音房里怎么称呼你<input required maxLength={16} value={name} onChange={e=>setName(e.target.value)} placeholder="输入你的昵称"/></label><label>入座号码<select className="field" value={preferredSeat} onChange={e=>setPreferredSeat(e.target.value)}><option value="0">自动选择空座位</option>{r.freeSeats.map((seat:number)=><option key={seat} value={seat}>{seat} 号 · 空座位</option>)}</select></label><button className="primary" disabled={busy||!r.canJoin||!name.trim()}>{busy?'正在入座…':r.canJoin?'加入这一局':'已开局或座位已满'} <ArrowRight size={18}/></button><div className="note"><Shield size={17}/><span>请始终使用同一个浏览器。刷新可以恢复席位，换浏览器或清除数据会丢失席位。</span></div></form><a href="/" className="text-button">自己开一桌 <ArrowUpRight size={16}/></a></main>:isRoom?<main className="room">
- <section className="room-heading"><div><span className="eyebrow">TABLE / {r.id.slice(-6).toUpperCase()}</span><h1>{r.hostName} 的牌桌 <span>{r.size} 人局</span></h1><p className="muted small">{r.host?'你是本局法官，不参与游戏':me?me.seat+' 号 · '+me.name:''}</p></div><div className="button-row">{r.voice?<a className="secondary" href={r.voice} target="_blank" rel="noopener noreferrer"><Headphones size={17}/>语音房 <ArrowUpRight size={15}/></a>:<span className="voice-hint"><Headphones size={17}/> 语音在原来的房间继续</span>}<button className="secondary" onClick={share}><Copy size={16}/>邀请朋友</button></div></section>
+ {!loaded||(id&&!r)?<main className="waiting"><Moon size={32}/><h1>正在寻找你的牌桌…</h1><p className="muted">{error?'请检查邀请链接，或重新建一桌。':'稍等，房间状态正在同步。'}</p>{error&&<a className="secondary" href="/">回到建房页</a>}</main>:!id?<main className="entry"><section className="intro"><span className="eyebrow">THE NIGHT IS YOURS</span><h1>人齐了，<br/>就开一局。</h1><p>语音里见，月下入座。<br/>发身份、走流程、计票，都交给这里。</p><div className="steps"><span><LinkIcon/> 分享房间</span><i>·</i><span><Shield/> 私密身份</span><i>·</i><span><Users/> 法官主持</span></div><div className="table-preview"><div className="table-ring"><Moon/><span>今晚，谁是狼人？</span><small>6–12 位玩家 · 另加 1 位法官</small></div>{Array.from({length:Number(size)},(_,i)=><span key={i} className="seat-orbit" style={{'--i':i,'--step':(360/Number(size))+'deg'} as React.CSSProperties}>{String(i+1).padStart(2,'0')}</span>)}</div></section><form className="create-panel" onSubmit={e=>{e.preventDefault();act('create',{name,size:Number(size),voice,setup:gameType==='avalon'?{gameType:'avalon'}:setup,gameType});}}><div className="panel-top"><span className="eyebrow">NEW TABLE</span><span className="pill">法官建房</span></div>
+<h2>开一桌</h2>
+<p className="muted">建好房间，把邀请链接发到语音房或放在桌中央。</p>
+<div className="game-type-selector mb-4">
+  <label className="text-xs font-semibold text-slate-300 mb-1.5 block">选择桌游类型</label>
+  <div className="grid grid-cols-2 gap-2">
+    <button
+      type="button"
+      onClick={() => { setGameType('avalon'); setSize('7'); }}
+      className={`p-3 rounded-xl border text-left transition ${
+        gameType === 'avalon'
+          ? 'bg-indigo-600/30 border-indigo-400 text-white font-bold shadow'
+          : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 text-indigo-300 mb-1">
+        <Wifi className="w-4 h-4 text-emerald-400" />
+        <span className="text-sm">阿瓦隆 (Avalon)</span>
+      </div>
+      <p className="text-[11px] font-normal text-slate-300">5–10 人 · 推荐搭配 10 张白卡/NC卡</p>
+    </button>
+    <button
+      type="button"
+      onClick={() => { setGameType('werewolf'); setSize('9'); }}
+      className={`p-3 rounded-xl border text-left transition ${
+        gameType === 'werewolf'
+          ? 'bg-indigo-600/30 border-indigo-400 text-white font-bold shadow'
+          : 'bg-slate-800/60 border-slate-700 text-slate-400 hover:text-slate-200'
+      }`}
+    >
+      <div className="flex items-center gap-1.5 text-amber-300 mb-1">
+        <Gamepad2 className="w-4 h-4 text-amber-400" />
+        <span className="text-sm">狼人杀 (Werewolf)</span>
+      </div>
+      <p className="text-[11px] font-normal text-slate-300">6–12 人 · 经典屠边/预女猎守</p>
+    </button>
+  </div>
+</div><label>怎么称呼你<input required value={name} onChange={e=>setName(e.target.value)} placeholder="法官昵称" maxLength={16}/></label><label>本局玩家人数<Select value={size} onValueChange={changeSize}><SelectTrigger className="field"><SelectValue/></SelectTrigger><SelectContent>
+{(gameType==='avalon'?[5,6,7,8,9,10]:PLAYER_SIZES).map(n=><SelectItem key={n} value={String(n)}>{n} 人局 · 不含法官</SelectItem>)}
+</SelectContent></Select></label>{gameType==='werewolf'&&<SetupEditor size={Number(size)} setup={setup} onChange={setSetup}/>}<label>语音房链接 <span className="muted">选填</span><input type="url" value={voice} onChange={e=>setVoice(e.target.value)} placeholder="粘贴你们正在用的语音房链接"/></label><button className="primary" disabled={busy||!name.trim()||!!setupInvalid}>{busy?'正在建房…':'创建房间'} <ArrowUpRight size={19}/></button><div className="note"><Shield size={17}/><span>法官不占玩家席位。每个人用自己的手机入座。房间保留 24 小时。</span></div></form></main>:r?.phase==='join'?<main className="join-layout"><span className="eyebrow">YOUR SEAT IS WAITING</span><h1>{r.hostName} 的牌桌</h1><p className="muted">{r.size} 人局 · 已入座 {r.count} 人</p><SetupSummary setup={r.setup} size={r.size}/><form className="create-panel" onSubmit={e=>{e.preventDefault();act('join',{name,seat:Number(preferredSeat)});}}><h2>今晚，你来几号？</h2><p className="muted">可选择空座位，也可自动入座。身份在开局时随机发放。</p><label>语音房里怎么称呼你<input required maxLength={16} value={name} onChange={e=>setName(e.target.value)} placeholder="输入你的昵称"/></label><label>入座号码<select className="field" value={preferredSeat} onChange={e=>setPreferredSeat(e.target.value)}><option value="0">自动选择空座位</option>{r.freeSeats.map((seat:number)=><option key={seat} value={seat}>{seat} 号 · 空座位</option>)}</select></label><button className="primary" disabled={busy||!r.canJoin||!name.trim()}>{busy?'正在入座…':r.canJoin?'加入这一局':'已开局或座位已满'} <ArrowRight size={18}/></button><div className="note"><Shield size={17}/><span>请始终使用同一个浏览器。刷新可以恢复席位，换浏览器或清除数据会丢失席位。</span></div></form><a href="/" className="text-button">自己开一桌 <ArrowUpRight size={16}/></a></main>:isRoom?<main className={'room '+(isNightOled?'oled-night':'')}>
+ <section className="room-heading"><div><span className="eyebrow">TABLE / {r.id.slice(-6).toUpperCase()}</span><h1>{r.hostName} 的牌桌 <span>{r.size} 人局</span></h1><p className="muted small">{r.host?'你是本局法官，不参与游戏':me?me.seat+' 号 · '+me.name:''}</p></div><div className="button-row">{r.voice?<a className="secondary" href={r.voice} target="_blank" rel="noopener noreferrer"><Headphones size={17}/>语音房 <ArrowUpRight size={15}/></a>:<span className="voice-hint"><Headphones size={17}/> 语音在原来的房间继续</span>}<button className="secondary" onClick={share}><Copy size={16}/>邀请朋友</button></div></section><TableTools room={r} busy={busy} act={act} onConsole={()=>setShowConsole(true)}/>
  {invite&&<div className="invite-row"><label htmlFor="invite">邀请链接</label><input id="invite" readOnly value={invite} onFocus={e=>e.target.select()}/><button className="text-button" onClick={()=>setInvite('')}>收起</button></div>}
  <SetupSummary setup={r.setup} size={r.size}/><div className="game-layout"><section className="board-column"><div className={'phase-banner '+(night?'is-night':'')}><div className="phase-symbol">{night?<Moon size={28}/>:r.phase==='lobby'?<Users size={28}/>:<Sun size={28}/>}</div><div><span className="eyebrow">{r.day?'ROUND '+String(r.day).padStart(2,'0'):'WAITING FOR FRIENDS'}</span><h2>{r.phase==='ended'?r.winner+'阵营获胜':PHASES[r.phase]}</h2><p>{r.message}</p></div></div>
  <div className="board-top"><h3>玩家席位 <span>{players.length} / {r.size}</span></h3>{r.host&&r.phase!=='lobby'&&<label className="switch-label">显示身份 <Switch checked={showRoles} onCheckedChange={setShowRoles} aria-label="显示所有玩家身份"/></label>}{!r.host&&me?.role&&<button className="text-button accent" onClick={()=>setIdentity(true)}><Eye size={16}/>我的身份</button>}</div>
- <div className="seat-grid">{Array.from({length:r.size},(_,i)=>{const p=players.find(p=>p.seat===i+1);return <article key={i} className={'player-seat '+(!p?'empty-seat':'')+(p&&!p.alive?' dead-seat':'')+(p?.id===r.speaker?' speaking-seat':'')}><div className="seat-top"><span className="seat-num">{String(i+1).padStart(2,'0')}</span>{p&&<span className="player-status">{r.phase==='lobby'?(p.ready?<><Check size={13}/>已准备</>:'未准备'):!p.alive?'已出局':p.exploded?'狼人已自爆':p.idiotRevealed?'已翻牌 · 无票':p.id===r.speaker?<><Mic size={13}/>发言中</>:'存活'}</span>}</div><div className={'avatar '+(!p?'vacant':'')}>{p?p.name.slice(0,1):<Users size={21}/>}</div><strong>{p?p.name:'等待入座'}</strong>{p?.id===r.sheriffId&&<span className="sheriff-tag">警长 · 1.5 票</span>}{p&&p.id===me?.id&&<span className="you-label">你</span>}{p&&(r.phase==='ended'||showRoles||p.idiotRevealed||p.exploded)&&p.role&&<span className={'role-tag '+(p.role==='wolf'?'wolf':'')}>{ROLES[p.role]}</span>}{p&&r.phase==='deal'&&<small className="muted">{p.ack?'身份已确认':'正在查看身份'}</small>}{p&&r.host&&r.phase==='lobby'&&<button className="remove-seat" onClick={()=>ask('kick','移除 '+p.name+'？','仅移除这个等待中的席位，对方可以重新加入。',{target:p.id})}>移除</button>}</article>;})}</div>
+ <div className="seat-grid">{Array.from({length:r.size},(_,i)=>{const p=players.find(p=>p.seat===i+1);return <article key={i} className={'player-seat '+(!p?'empty-seat':'')+(p&&!p.alive?' dead-seat':'')+(p?.id===r.speaker?' speaking-seat':'')}><div className="seat-top">
+  <div onClick={()=>setNoteSeat(i+1)} className="cursor-pointer" title="点击添加私密身份笔记">
+    <span className="seat-num">{String(i+1).padStart(2,'0')}</span>
+    {playerNotes[i+1] && (
+      <span className="ml-1 text-[10px] px-1.5 py-0.5 rounded bg-indigo-900/80 text-indigo-200 border border-indigo-700">
+        {playerNotes[i+1]}
+      </span>
+    )}
+  </div>
+{p&&<span className="player-status">{r.phase==='lobby'?(p.ready?<><Check size={13}/>已准备</>:'未准备'):!p.alive?'已出局':p.exploded?'狼人已自爆':p.idiotRevealed?'已翻牌 · 无票':p.id===r.speaker?<><Mic size={13}/>发言中</>:'存活'}</span>}</div><div className={'avatar '+(!p?'vacant':'')}>{p?p.name.slice(0,1):<Users size={21}/>}</div><strong>{p?p.name:'等待入座'}</strong>{p?.id===r.sheriffId&&<span className="sheriff-tag">警长 · 1.5 票</span>}{p&&p.id===me?.id&&<span className="you-label">你</span>}{p&&(r.phase==='ended'||showRoles||p.idiotRevealed||p.exploded)&&p.role&&<span className={'role-tag '+(p.role==='wolf'?'wolf':'')}>{ROLES[p.role]}</span>}{p&&r.phase==='deal'&&<small className="muted">{p.ack?'身份已确认':'正在查看身份'}</small>}{p&&r.host&&r.phase==='lobby'&&<button className="remove-seat" onClick={()=>ask('kick','移除 '+p.name+'？','仅移除这个等待中的席位，对方可以重新加入。',{target:p.id})}>移除</button>}</article>;})}</div>
  <div className="round-log"><div className="board-top"><h3>本局记录</h3><span className="muted small">只记录公开信息</span></div>{r.logs.length?<ol>{[...r.logs].reverse().map((l:any,i:number)=><li key={i}><span>{l.day?'第 '+l.day+' 轮':'准备'}</span><p>{l.text}</p></li>)}</ol>:<p className="muted small">开局后，天亮结果和投票结果会留在这里。</p>}</div></section>
- <aside className="action-panel"><div className="panel-top"><span className="eyebrow">{r.host?'HOST DESK':'YOUR TURN'}</span><span className="pill">{r.host?'法官主持台':me?.seat+' 号玩家'}</span></div><h2>{r.host?'把这一局，带好。':r.phase==='lobby'?'准备入夜。':r.action?PHASES[r.action]:r.phase==='vote'?'你的这一票':r.phase==='ended'?'好局，下次再来。':PHASES[r.phase]||'现在轮到谁？'}</h2>
+ <aside className="action-panel">
+{r.gameType === 'avalon' && <AvalonView room={r} onSend={send} />}
+<div className="panel-top"><span className="eyebrow">{r.host?'HOST DESK':'YOUR TURN'}</span><span className="pill">{r.host?'法官主持台':me?.seat+' 号玩家'}</span></div><h2>{r.host?'把这一局，带好。':r.phase==='lobby'?'准备入夜。':r.action?PHASES[r.action]:r.phase==='vote'?'你的这一票':r.phase==='ended'?'好局，下次再来。':PHASES[r.phase]||'现在轮到谁？'}</h2>
  {r.host?hostControls:<>
   <SheriffControls room={r} busy={busy} act={act} ask={ask}/>
   {r.phase==='lobby'&&<><p className="muted">先加入你们的语音房，确认玩法后准备。全部人准备好，法官就可以发身份。</p><button className={me?.ready?'secondary full':'primary full'} disabled={busy} onClick={()=>act('ready',{ready:!me?.ready})}>{me?.ready?<><Check size={18}/>已准备 · 点击取消</>:'我准备好了'}</button><button className="text-button leave" disabled={busy} onClick={()=>act('leave')}><LogOut size={15}/>取消入座</button><SeatControls room={r} busy={busy} act={act} ask={ask}/></>}
@@ -117,13 +253,51 @@ export default function TableApp(){
    {submitted&&<p className="success"><Check size={17}/>已提交，等待法官推进。</p>}
    {r.action==='wolves'&&Object.keys(r.wolfVotes).length>0&&<div className="team-votes">{Object.entries(r.wolfVotes).map(([pid,t])=><p key={pid}>{person(pid)?.seat} 号选择了 {label(t as string)}</p>)}</div>}
   </>}
-  {r.phase==='night'&&!r.action&&<div className="wait-state"><Moon size={38}/><h3>{me?.alive?'天黑，请保持安静':'你已出局，安静观战'}</h3><p className="muted">轮到你时，操作会出现在这里。其他时间请不要在语音房透露信息。</p></div>}
+  
+  {r.phase==='night'&&!r.action&&<div className="wait-state">
+    <Moon size={38}/>
+    <h3>{me?.alive?(r.nightMode==='openEyes'?'🌙 全员低头暗操进行中':'天黑，请闭眼'):'你已出局，安静观战'}</h3>
+    {me?.alive && r.nightMode==='openEyes' ? (
+      <div className="bluff-box p-3 bg-slate-900/90 border border-slate-800 rounded-xl my-2 text-left space-y-2">
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-amber-300">🌙 夜间伪装占卜：盲猜本局狼人</span>
+          <span className="text-[10px] text-slate-500">全桌同步低头点击</span>
+        </div>
+        <p className="text-[11px] text-slate-400">
+          全员统一低头点击屏幕，平民不空白等待，杜绝闭眼场外。你的占卜纯属私密：
+        </p>
+        <div className="grid grid-cols-4 gap-1.5 pt-1">
+          {r.players.filter((p:any)=>p.alive && p.id!==me.id).map((p:any)=>(
+            <button
+              key={p.id}
+              onClick={()=>act('villagerBluff', { target: p.id })}
+              className={`p-1.5 rounded-lg border text-[11px] font-medium transition ${
+                r.myBluff === p.id
+                  ? 'bg-amber-500 text-slate-950 border-amber-400 font-bold'
+                  : 'bg-slate-800 border-slate-700 text-slate-300 hover:bg-slate-750'
+              }`}
+            >
+              {p.seat}号 {p.name.slice(0, 3)}
+            </button>
+          ))}
+        </div>
+        {r.myBluff && (
+          <p className="text-[10px] text-emerald-400 text-center pt-1">
+            已标记盲猜 {r.players.find((p:any)=>p.id===r.myBluff)?.seat} 号为狼人
+          </p>
+        )}
+      </div>
+    ) : (
+      <p className="muted">轮到你时，操作会出现在这里。其他时间请不要透露信息。</p>
+    )}
+  </div>}
+
   {['speech','runoffSpeech'].includes(r.phase)&&<><div className="speaker-clock"><Mic/><div><span>{speaker?.seat} 号 · {speaker?.name}</span><b>{Math.floor(seconds/60)}:{String(seconds%60).padStart(2,'0')}</b></div></div><p className="muted">{speaker?.id===me?.id?'现在是你的发言时间，说完请告诉法官。':'请听这位玩家发言，其他人先关闭麦克风。'}</p></>}
   {r.phase==='vote'&&<>{r.voteRound===2&&<p className="muted small">平票加投：先听平票玩家补充发言，再选择目标。</p>}<p className="muted small">已投 {r.voteCount} / {r.voteTotal} 票</p>{!r.canVote?<p className="muted">{me?.idiotRevealed?'你已翻牌，保留发言权，但不能再投票。':me?.alive?'你在本轮 PK 台上，不能参加加投。':'你已出局，本轮无需投票。'}</p>:r.myVote?<p className="success"><Check size={17}/>已投给 {r.myVote==='pass'?'弃票':label(r.myVote)}，等待结果。</p>:<>{choice()}<button className="primary full" disabled={busy||!target} onClick={()=>ask('vote','确认投票？','提交后不能修改。'+(target==='pass'?'本轮弃票。':'你将投给 '+label(target)+'。'),{target})}>提交这一票</button></>}</>}
   {r.phase==='hunter'&&(r.hunter===me?.id?<><p className="muted">你可以带走一位存活玩家，也可以放弃开枪。</p>{choice()}<button className="primary full" disabled={busy||!target} onClick={()=>ask('shoot','确认猎人行动？',target==='pass'?'放弃本次开枪。':'带走 '+label(target),{target})}>确认猎人行动</button></>:<p className="muted">{label(r.hunter)} 正在决定是否开枪。</p>)}
   {r.phase==='dusk'&&<p className="muted">本轮已经结束，等待法官开始下一夜。</p>}
   {r.phase==='ended'&&<><p className="muted">所有身份已揭晓。等法官开启下一局，就能原座再战。</p><div className="result-mark"><Shield size={42}/><strong>{r.winner}获胜</strong></div></>}
-  {r.canExplode&&<div className="explode-control"><p className="muted small">自爆将公开你的狼人身份并结束本轮白天。投票开始后不可自爆。</p><button className="danger full" disabled={busy} onClick={()=>ask('explode','确认狼人自爆？','你会立即公开狼人身份并出局，跳过本轮放逐。'+(r.phase==='sheriffSpeech'?(r.setup.sheriffExplosion==='double'?'本桌采用双爆吞警徽。':'本桌采用单爆吞警徽。'):''))}>狼人自爆</button></div>}
+  {r.canExplode&&<HoldToExplodeButton disabled={busy} onExplode={()=>ask('explode','确认狼人自爆？','你会立即公开狼人身份并出局，跳过本轮放逐。'+(r.phase==='sheriffSpeech'?(r.setup.sheriffExplosion==='double'?'本桌采用双爆吞警徽。':'本桌采用单爆吞警徽。'):''))}/>}
   {r.phase==='explosion'&&<p className="muted">本轮白天已结束，请按法官指令处理约定遗言，等待进入下一夜。</p>}
   {me?.checks?.length>0&&<details className="private-checks"><summary>我的查验记录</summary>{me.checks.map((x:any)=><p key={x.day}>第 {x.day} 夜 · {x.seat} 号是{x.result}</p>)}</details>}
  </>}
@@ -133,5 +307,16 @@ export default function TableApp(){
  <Dialog open={identity} onOpenChange={setIdentity}><DialogContent className="identity-dialog"><DialogHeader><DialogTitle>你的身份 · {me?.seat} 号</DialogTitle><DialogDescription>只给你看，看完请收好。</DialogDescription></DialogHeader><div className={'identity-card '+(me?.role==='wolf'?'wolf':'')}><Shield size={46}/><h2>{ROLES[me?.role]||'尚未发放'}</h2><p>{ROLE_HELP[me?.role]}</p>{me?.role==='witch'&&<p className="small">{witchText(currentSetup)}</p>}{me?.role==='wolf'&&<p className="small">狼队：{r.wolfTeam.map((p:any)=>p.seat+' 号 '+p.name).join('、')}</p>}</div><button className="primary full" onClick={()=>{setIdentity(false);if(r.phase==='deal'&&!me?.ack)act('ack');}}>记住了，收好身份</button></DialogContent></Dialog>
  <Dialog open={!!editSetup} onOpenChange={open=>{if(!open)setEditSetup(null);}}><DialogContent className="rules-dialog"><DialogHeader><DialogTitle>修改本桌玩法</DialogTitle><DialogDescription>{r?.size} 人局 · 保存后全员需要重新准备</DialogDescription></DialogHeader>{editSetup&&<><SetupEditor size={r?.size} setup={editSetup} onChange={setEditSetup}/><button className="primary full" disabled={busy||!!configurationError(r?.size,editSetup)} onClick={()=>void send('configure',{setup:editSetup,epoch:editEpoch}).then(()=>setEditSetup(null)).catch(()=>{})}>保存玩法并重新准备</button></>}</DialogContent></Dialog>
  <AlertDialog open={!!confirm} onOpenChange={open=>{if(!open)setConfirm(null);}}><AlertDialogContent><AlertDialogHeader><AlertDialogTitle>{confirm?.title}</AlertDialogTitle><AlertDialogDescription>{confirm?.body}</AlertDialogDescription></AlertDialogHeader><AlertDialogFooter><AlertDialogCancel>再想一下</AlertDialogCancel><AlertDialogAction disabled={busy} onClick={()=>{if(confirm)act(confirm.action,{...confirm.args,epoch:confirm.epoch});setConfirm(null);}}>确认</AlertDialogAction></AlertDialogFooter></AlertDialogContent></AlertDialog>
+<Dialog open={showConsole} onOpenChange={setShowConsole}>
+  <DialogContent className="max-w-2xl bg-slate-950 border-slate-800 p-4">
+    <DialogHeader>
+      <DialogTitle className="text-center text-sm font-bold text-slate-200">
+        乐鑫 ESP32 MOSAicO 480×480 桌面中央公屏 / 电子法官
+      </DialogTitle>
+    </DialogHeader>
+    <MosaicoConsole room={r} onAdvance={advance} onAction={act} />
+  </DialogContent>
+</Dialog>
+
  </div>;
 }

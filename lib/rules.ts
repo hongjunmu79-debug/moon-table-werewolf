@@ -2,8 +2,9 @@ export const ROLES:Record<string,string>={wolf:'狼人',seer:'预言家',witch:'
 export const ROLE_IDS=['wolf','seer','witch','hunter','idiot','guard','villager'] as const;
 export type Role=typeof ROLE_IDS[number];
 export type RoleCounts=Record<Role,number>;
-export type GameConfig={mode:'recommended'|'custom';preset:'classic'|'guard';roles:RoleCounts;victory:'edge'|'parity';witchSelfSave:'never'|'firstNight'|'always';sheriff:boolean;sheriffExplosion:'single'|'double'};
+export type GameConfig={mode:'recommended'|'custom';preset:'classic'|'guard';roles:RoleCounts;victory:'edge'|'parity';witchSelfSave:'never'|'firstNight'|'always';sheriff:boolean;sheriffExplosion:'single'|'double';nightMode?:'openEyes'|'closedEyes'};
 export const PLAYER_SIZES=[6,7,8,9,10,11,12];
+export const AVALON_SIZES=[5,6,7,8,9,10];
 export const ROLE_HELP:Record<string,string>={
  wolf:'每晚与狼队选择袭击目标，可以自刀或选择狼队成员。狼队唯一最高票生效，平票为空刀。',
  seer:'每晚可查验另一位存活玩家的阵营，结果仅自己和法官可见。',
@@ -11,9 +12,9 @@ export const ROLE_HELP:Record<string,string>={
  hunter:'被刀或被放逐后可以开枪带走一人；中毒不能开枪。',
  idiot:'首次被投票放逐时亮明身份并留在场上，此后不能投票或被放逐。仍可发言，遭狼刀、毒药或猎人枪击会出局。',
  guard:'每晚可守护一位存活玩家，可以守自己，不能连续两夜守同一人。能挡狼刀，不能挡毒药；同守同救仍会出局。',
- villager:'白天认真听发言，用投票找出狼人。'
+ villager:'白天认真听发言，用投票找出狼人。夜间支持盲猜占卜伪装，全员低头点击防场外。'
 };
-export const PHASES:Record<string,string>={lobby:'等待入座',deal:'确认身份',night:'天黑请闭眼',guard:'守卫行动',wolves:'狼人行动',seer:'预言家行动',witch:'女巫行动',dawn:'天亮了',speech:'依次发言',vote:'放逐投票',hunter:'猎人开枪',dusk:'本日结束',ended:'本局结束',sheriffSignup:'上警报名',sheriffSpeech:'警长竞选发言',sheriffVote:'警长竞选投票',badge:'移交警徽',order:'警长决定发言顺序',runoffSpeech:'放逐平票 PK 发言',explosion:'狼人自爆 · 白天结束'};
+export const PHASES:Record<string,string>={lobby:'等待入座',deal:'确认身份',night:'天黑请闭眼',guard:'守卫行动',wolves:'狼人行动',seer:'预言家行动',witch:'女巫行动',dawn:'天亮了',speech:'依次发言',vote:'放逐投票',hunter:'猎人开枪',dusk:'本日结束',ended:'本局结束',sheriffSignup:'上警报名',sheriffSpeech:'警长竞选发言',sheriffVote:'警长竞选投票',badge:'移交警徽',order:'警长决定发言顺序',runoffSpeech:'放逐平票 PK 发言',explosion:'狼人自爆 · 白天结束',avalonNominate:'队长选人',avalonVoteTeam:'全员组队表决',avalonVoteMission:'出勤秘密执行',avalonReveal:'逐张开牌揭晓',avalonLady:'湖中仙女验人',avalonAssassinate:'刺客绝杀梅林'};
 export class RuleError extends Error {}
 function fail(message:string):never{throw new RuleError(message);}
 export function recommendedConfig(size:number,preset:'classic'|'guard'='classic'):GameConfig{
@@ -22,7 +23,7 @@ export function recommendedConfig(size:number,preset:'classic'|'guard'='classic'
  const wolves=size>=12?4:size>=9?3:2;
  const roles:RoleCounts={wolf:wolves,seer:1,witch:1,hunter:size>=8?1:0,idiot:size>=11&&preset==='classic'?1:0,guard:size>=10&&preset==='guard'?1:0,villager:0};
  roles.villager=size-Object.values(roles).reduce((sum,n)=>sum+n,0);
- return {mode:'recommended',preset,roles,victory:'edge',witchSelfSave:'firstNight',sheriff:false,sheriffExplosion:'single'};
+ return {mode:'recommended',preset,roles,victory:'edge',witchSelfSave:'firstNight',sheriff:false,sheriffExplosion:'single',nightMode:'openEyes'};
 }
 export function legacyConfig(size:number):GameConfig{
  const config=recommendedConfig(size);
@@ -37,12 +38,13 @@ export function resolveConfig(size:number,input?:unknown):GameConfig{
  if(typeof sheriff!=='boolean')fail('警长开关必须是布尔值');
  if(sheriff&&size<9)fail('警长流程支持 9–12 人局');
  const sheriffExplosion=value.sheriffExplosion===undefined?'single':value.sheriffExplosion;
+  const nightMode=value.nightMode==='closedEyes'?'closedEyes':'openEyes';
  if(typeof sheriffExplosion!=='string'||!['single','double'].includes(sheriffExplosion))fail('请选择警上自爆的警徽规则');
  const witchSelfSave=value.witchSelfSave===undefined?'firstNight':value.witchSelfSave;
  if(typeof witchSelfSave!=='string'||!['never','firstNight','always'].includes(witchSelfSave))fail('请选择有效的女巫自救规则');
  if(value.mode==='recommended'){
   if(value.preset!==undefined&&!['classic','guard'].includes(String(value.preset)))fail('推荐配置无效');
-  return {...recommendedConfig(size,(value.preset||'classic') as 'classic'|'guard'),witchSelfSave:witchSelfSave as GameConfig['witchSelfSave'],sheriff,sheriffExplosion:sheriffExplosion as GameConfig['sheriffExplosion']};
+  return {...recommendedConfig(size,(value.preset||'classic') as 'classic'|'guard'),witchSelfSave:witchSelfSave as GameConfig['witchSelfSave'],sheriff,sheriffExplosion:sheriffExplosion as GameConfig['sheriffExplosion'],nightMode};
  }
  if(value.mode!=='custom')fail('请选择推荐玩法或自选玩法');
  if(!value.roles||typeof value.roles!=='object'||Array.isArray(value.roles))fail('请配置身份数量');

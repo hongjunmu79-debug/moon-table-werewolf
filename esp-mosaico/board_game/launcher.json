@@ -1,0 +1,10 @@
+{
+  "schema_version": 1,
+  "id": "board_game",
+  "display_name": "桌游公屏",
+  "entry": "scripts/main.lua",
+  "icon": "assets/icon.jpg",
+  "args": {},
+  "order": 5,
+  "visible": true
+}

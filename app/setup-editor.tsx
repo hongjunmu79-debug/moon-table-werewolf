@@ -17,6 +17,7 @@ export default function SetupEditor({size,setup,onChange}:{size:number;setup:Gam
   {setup.mode==='recommended'?<>
    {size>=10&&<label>推荐板型<select className="field" value={setup.preset} onChange={e=>recommend(e.target.value as 'classic'|'guard')}><option value="classic">{size>=11?'预女猎白 · 白痴局':'预女猎 · 经典局'}</option><option value="guard">预女猎守 · 守卫局</option></select></label>}
    <SetupSummary setup={setup} size={size}/>
+   <label>夜晚行动模式<select className="field" value={setup.nightMode||'openEyes'} onChange={e=>onChange({...setup,nightMode:e.target.value as GameConfig['nightMode']})}><option value="openEyes">📱 手机全睁眼暗操模式 (全员低头操作防闭眼场外)</option><option value="closedEyes">🙈 传统闭眼面杀模式 (纯黑OLED大按钮盲点)</option></select></label>
    <p className="setup-note">推荐配置采用屠边规则。女巫默认仅首夜可自救，可按本桌约定调整。{size>=9?'警长流程可选。':''} 发牌前可切换为自选玩法。</p>
   </>:<>
    <div className="setup-total" aria-live="polite">角色合计 <b>{total} / {size}</b><span>{total===size?'人数匹配':total<size?'还差 '+(size-total)+' 位':'多了 '+(total-size)+' 位'}</span></div>

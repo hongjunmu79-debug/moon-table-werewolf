@@ -1,7 +1,7 @@
 import {createServer} from 'node:http';
 import {readFile,stat} from 'node:fs/promises';
 import {resolve,join,extname} from 'node:path';
-import {roomGet,roomPost} from './room';
+import {roomGet,roomPost,mosaicoPoll} from './room';
 
 const root=resolve(import.meta.dirname,'../dist');
 const types:Record<string,string>={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.svg':'image/svg+xml','.png':'image/png','.ico':'image/x-icon','.woff2':'font/woff2'};
@@ -16,6 +16,12 @@ const server=createServer(async(req,res)=>{
     res.setHeader('Referrer-Policy','same-origin');
     if(url.pathname==='/healthz'){
       res.writeHead(200,{'Content-Type':'text/plain; charset=utf-8','Cache-Control':'no-store'});res.end('ok');return;
+    }
+    if(url.pathname==='/api/mosaico/poll'||url.pathname==='/api/mosaico'){
+      const request=new Request(url,{method:'GET',headers:req.headers as HeadersInit});
+      const answer=await mosaicoPoll(request);
+      res.writeHead(answer.status,Object.fromEntries(answer.headers.entries()));
+      res.end(Buffer.from(await answer.arrayBuffer()));return;
     }
     if(url.pathname==='/api/room'){
       if(req.method!=='GET'&&req.method!=='POST'){res.writeHead(405,{'Allow':'GET, POST'});res.end();return;}

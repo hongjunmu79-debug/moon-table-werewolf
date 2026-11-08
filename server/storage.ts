@@ -8,10 +8,18 @@ export interface RoomStore{
 }
 
 const memory=new Map<string,StoredRoom>();
+let latestId='';
 export const memoryStore:RoomStore={
-  async create(room){if(memory.has(room.id))throw new Error('duplicate room');memory.set(room.id,{state:JSON.stringify(room),revision:0,expires:room.expires});},
-  async read(id){return memory.get(id)||null;},
-  async compareAndSwap(id,revision,room){const old=memory.get(id);if(!old||old.revision!==revision)return false;memory.set(id,{state:JSON.stringify(room),revision:revision+1,expires:room.expires});return true;},
+  async create(room){if(memory.has(room.id))throw new Error('duplicate room');latestId=room.id;memory.set(room.id,{state:JSON.stringify(room),revision:0,expires:room.expires});},
+  async read(id){
+    if(id==='latest'){
+      if(latestId&&memory.has(latestId))return memory.get(latestId)||null;
+      const keys=[...memory.keys()];
+      return keys.length?memory.get(keys[keys.length-1])||null:null;
+    }
+    return memory.get(id)||null;
+  },
+  async compareAndSwap(id,revision,room){const old=memory.get(id);if(!old||old.revision!==revision)return false;latestId=room.id;memory.set(id,{state:JSON.stringify(room),revision:revision+1,expires:room.expires});return true;},
 };
 
 let cloudDbPromise:Promise<any>|undefined;
@@ -46,4 +54,4 @@ export const cloudStore:RoomStore={
   },
 };
 
-export function roomStore():RoomStore{return process.env.TEST_MEMORY_DB==='1'?memoryStore:cloudStore;}
+export function roomStore():RoomStore{return (process.env.TEST_MEMORY_DB==='1'||(!process.env.TCB_ENV&&!process.env.CLOUDBASE_ENV_ID))?memoryStore:cloudStore;}
